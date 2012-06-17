@@ -11,8 +11,8 @@ namespace ObjectMapper
     #region Exceptions
     public class MetadataValidationException : InvalidOperationException
     {
-        public MetadataValidationException(string message) : base(message) {}
-        public MetadataValidationException(string message, Exception innerException) : base(message, innerException) {}
+        public MetadataValidationException(string message) : base(message) { }
+        public MetadataValidationException(string message, Exception innerException) : base(message, innerException) { }
     }
     #endregion
 
@@ -32,6 +32,7 @@ namespace ObjectMapper
     #endregion
 
     #region Attributes
+    // ReSharper disable MemberCanBePrivate.Global
 
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Assembly)]
     public class DbTableAttribute : Attribute
@@ -52,6 +53,7 @@ namespace ObjectMapper
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Enum | AttributeTargets.Assembly)]
     public class DbEnumAttribute : Attribute
     {
+
         public EnumSaveType SaveType { get; set; }
         public DbEnumAttribute(EnumSaveType saveType) { SaveType = saveType; }
     }
@@ -63,6 +65,7 @@ namespace ObjectMapper
     [AttributeUsage(AttributeTargets.Property)]
     public class DbCreatedTimestampAttribute : Attribute { }
 
+    // ReSharper restore MemberCanBePrivate.Global
     #endregion
 
     #region Public API
@@ -111,9 +114,7 @@ namespace ObjectMapper
         public static IDbCommand CreateMappedInsertCommand<T>(this IDbConnection conn, T obj = null) where T : class, new()
         {
             if (conn == null) throw new ArgumentNullException("conn");
-            var cmd = conn.CreateCommand();
-            cmd.CommandType = CommandType.Text;
-            cmd.CommandText = ObjectMapper<T>.InsertStatement;
+            var cmd = conn.CreateCommand(CommandType.Text, ObjectMapper<T>.InsertStatement);
             cmd.SetMappedInsertParameters(obj ?? new T());
             return cmd;
         }
@@ -121,9 +122,7 @@ namespace ObjectMapper
         public static IDbCommand CreateMappedUpdateCommand<T>(this IDbConnection conn, T obj = null) where T : class, new()
         {
             if (conn == null) throw new ArgumentNullException("conn");
-            var cmd = conn.CreateCommand();
-            cmd.CommandType = CommandType.Text;
-            cmd.CommandText = ObjectMapper<T>.UpdateStatement;
+            var cmd = conn.CreateCommand(CommandType.Text, ObjectMapper<T>.UpdateStatement);
             cmd.SetMappedUpdateParameters(obj ?? new T());
             return cmd;
         }
@@ -131,48 +130,80 @@ namespace ObjectMapper
         public static IDbCommand CreateMappedDeleteCommand<T>(this IDbConnection conn, T obj = null) where T : class, new()
         {
             if (conn == null) throw new ArgumentNullException("conn");
-            var cmd = conn.CreateCommand();
-            cmd.CommandType = CommandType.Text;
-            cmd.CommandText = ObjectMapper<T>.DeleteStatement;
+            var cmd = conn.CreateCommand(CommandType.Text, ObjectMapper<T>.DeleteStatement);
             cmd.SetMappedDeleteParameters(obj ?? new T());
             return cmd;
         }
 
         public static IDbCommand CreateMappedSelectCommand<T>(this IDbConnection conn) where T : class, new()
         {
-            if (conn == null) throw new ArgumentNullException("conn");
-            var cmd = conn.CreateCommand();
-            cmd.CommandText = ObjectMapper<T>.SelectStatement;
-            cmd.CommandType = CommandType.Text;
-            return cmd;
+            return conn.CreateCommand(CommandType.Text, ObjectMapper<T>.SelectStatement);
         }
 
         public static IDbCommand CreateMappedSelectCommand<T>(this IDbConnection conn, string criteria, params object[] parameterValues) where T : class, new()
         {
+            var cmd = CreateMappedSelectCommand<T>(conn);
             if (criteria == null) throw new ArgumentNullException("criteria");
-            var cmd = conn.CreateMappedSelectCommand<T>();
-
             cmd.CommandText += criteria;
-            if (parameterValues != null)
-            {
-                for (var i = 0; i < parameterValues.Length; ++i)
-                {
-                    var p = cmd.CreateParameter();
-                    p.ParameterName = "@" + i;
-                    p.Value = Helpers.GetDbValue(parameterValues[i]);
-                    cmd.Parameters.Add(p);
-                }
-            }
+            cmd.AddIndexedParameters(parameterValues);
             return cmd;
         }
 
-        public static void InsertMappedObject<T>(this IDbConnection conn, T obj) where T : class, new()
+        public static IDbCommand CreateCommand(this IDbConnection conn, CommandType commandType, string commandText)
+        {
+            if (conn == null) throw new ArgumentNullException("conn");
+            if (string.IsNullOrWhiteSpace(commandText)) throw new ArgumentException("commandText");
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = commandText;
+            cmd.CommandType = commandType;
+            return cmd;
+        }
+
+        public static int ExecuteNonQueryText(this IDbConnection conn, string commandText, params object[] parameterValues)
+        {
+            var cmd = conn.CreateCommand(CommandType.Text, commandText);
+            cmd.AddIndexedParameters(parameterValues);
+            return cmd.ExecuteNonQuery();
+        }
+
+        public static IDataReader ExecuteReaderText(this IDbConnection conn, string commandText, params object[] parameterValues)
+        {
+            var cmd = conn.CreateCommand(CommandType.Text, commandText);
+            cmd.AddIndexedParameters(parameterValues);
+            return cmd.ExecuteReader();
+        }
+
+        //public static object ExecuteScalar(this IDbCommand cmd, CommandType type, string commandText, params object[] parameterValues)
+        //{
+        //    //cmd.SetCommandTypeTextAndIndexedParameters(type, commandText, parameterValues);
+        //    var cmd = 
+        //    return cmd.ExecuteScalar();
+        //}
+
+        public static int InsertMappedObject<T>(this IDbConnection conn, T obj) where T : class, new()
         {
             if (conn == null) throw new ArgumentNullException("conn");
             if (obj == null) throw new ArgumentNullException("obj");
             var cmd = conn.CreateMappedInsertCommand(obj);
-            ObjectMapper<T>.InsertMappedObject(cmd, obj);
+            return ObjectMapper<T>.InsertMappedObject(cmd, obj);
         }
+
+        #region Internal - Might go public later
+        internal static void AddIndexedParameters(this IDbCommand cmd, params object[] parameterValues)
+        {
+            if (cmd == null) throw new ArgumentNullException("cmd");
+            if (parameterValues == null)
+                return;
+
+            for (var i = 0; i < parameterValues.Length; ++i)
+            {
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@" + i;
+                p.Value = Helpers.GetDbValue(parameterValues[i]);
+                cmd.Parameters.Add(p);
+            }
+        }
+        #endregion
     }
     // ReSharper restore MemberCanBePrivate.Global
     #endregion
@@ -184,13 +215,8 @@ namespace ObjectMapper
         #region Mapping function
 
         static Func<IDataRecord, T> _mapFunc;
-
-        public static T MapObject(IDataRecord reader)
-        {
-            if (_mapFunc == null) _mapFunc = BuildMapper();
-            return _mapFunc(reader);
-        }
-
+        public static Func<IDataRecord, T> MapObject { get { return _mapFunc ?? (_mapFunc = BuildMapper()); } }
+        
         static Func<IDataRecord, T> BuildMapper()
         {
             var entityType = typeof(T);
@@ -217,17 +243,19 @@ namespace ObjectMapper
             return Expression.Lambda<Func<IDataRecord, T>>(body, record).Compile();
         }
 
-        static IEnumerable<Expression> GetPropertySetterExprs(Type entityType, ParameterExpression resultExpr, ParameterExpression readerExpr)
+        #region Dynamic Method Generation using Expressions
+        
+        static IEnumerable<Expression> GetPropertySetterExprs(Type entityType, Expression resultExpr, Expression readerExpr)
         {
             return entityType.GetProperties().Where(CanMapProperty).Select(p => GetPropertySetterExpr(p, resultExpr, readerExpr));
         }
 
-        private static bool CanMapProperty(PropertyInfo propertyInfo)
+        static bool CanMapProperty(PropertyInfo propertyInfo)
         {
             return propertyInfo.CanWrite && !Attribute.IsDefined(propertyInfo, typeof(DbIgnoreAttribute));
         }
 
-        static Expression GetPropertySetterExpr(PropertyInfo property, ParameterExpression resultExpr, ParameterExpression readerExpr)
+        static Expression GetPropertySetterExpr(PropertyInfo property, Expression resultExpr, Expression readerExpr)
         {
             return
                 WrappedReaderExpr(
@@ -239,39 +267,40 @@ namespace ObjectMapper
                 );
         }
 
-        static Expression CreateReaderGetValueExpr(PropertyInfo property, ParameterExpression readerExpr)
+        static Expression CreateReaderGetValueExpr(PropertyInfo property, Expression readerExpr)
         {
             var propertyName = Expression.Constant(property.Name);
             var ordinalCallExpr = Expression.Call(readerExpr, ReaderGetOrdinalMethod, propertyName);
             var getValueExpr = Expression.Property(readerExpr, ReaderIndexByStringProperty, propertyName);
 
-            // Check if property is enum first!
-            if (property.PropertyType.IsEnum)
-            {
-                // (PropertyType)Enum.Parse(PropertyType, reader[PropertyName].ToString())
-                return Expression.Convert(
-                    Expression.Call(
-                        EnumParseMethod,
-                        Expression.Constant(property.PropertyType),
-                        Expression.Call(getValueExpr, ToStringMethod),
-                        Expression.Constant(true)
-                    ),
-                    property.PropertyType
-                    );
-            }
-
-            // Check for fast method
-            var methodName = "Get" + property.PropertyType.Name; // GetString, GetInt32, etc...
-            var fastMethod = typeof(IDataRecord).GetMethod(methodName, new[] { typeof(int) });
-            if (fastMethod != null)
-            {
-                // No cast necessary
-                return Expression.Call(readerExpr, fastMethod, ordinalCallExpr);
-            }
-            return Expression.Convert(getValueExpr, property.PropertyType);
+            return EnumParseReaderValueExpression(property, getValueExpr)
+                ?? ReaderGetSpecificTypeExpression(property, readerExpr, ordinalCallExpr)
+                ?? Expression.Convert(getValueExpr, property.PropertyType);
         }
 
-        private static Expression WrappedReaderExpr(string propertyName, Expression inner)
+        static Expression ReaderGetSpecificTypeExpression(PropertyInfo property, Expression readerExpr, Expression ordinalCallExpr)
+        {
+            var methodName = "Get" + property.PropertyType.Name; // GetString, GetInt32, etc...
+            var fastMethod = typeof(IDataRecord).GetMethod(methodName, new[] { typeof(int) });
+            return fastMethod != null ? Expression.Call(readerExpr, fastMethod, ordinalCallExpr) : null;
+        }
+
+        static Expression EnumParseReaderValueExpression(PropertyInfo property, Expression getValueExpr)
+        {
+            return property.PropertyType.IsEnum
+                 ? Expression.Convert(
+                    Expression.Call(
+                        EnumParseMethod,
+                            Expression.Constant(property.PropertyType),
+                            Expression.Call(getValueExpr, ToStringMethod),
+                            Expression.Constant(true)
+                        ),
+                        property.PropertyType
+                    )
+                 : null;
+        }
+
+        static Expression WrappedReaderExpr(string propertyName, Expression inner)
         {
             var msg = Expression.Constant(string.Format("The field \"{0}\" was not found in the reader", propertyName));
             var ex = Expression.Parameter(typeof(IndexOutOfRangeException), "ex");
@@ -282,7 +311,9 @@ namespace ObjectMapper
             );
             var catchExpr = Expression.Catch(ex, thrower);
             return Expression.TryCatch(inner, catchExpr);
-        }
+        } 
+
+        #endregion
 
         #region Method Infos
         static readonly MethodInfo ReaderGetOrdinalMethod = typeof(IDataRecord).GetMethod("GetOrdinal", new[] { typeof(string) });
@@ -364,31 +395,49 @@ namespace ObjectMapper
                 "UPDATE ",
                 Metadata.TableName,
                 " SET ",
-                string.Join(", ", updateColumns.Select(c => c.Name + " = " + c.ParamName)),
+                string.Join(", ", ColumnsToEqualSql(updateColumns)),
                 " WHERE ",
-                string.Join(" AND ", Metadata.Columns.Where(c => c.IsKey).Select(c => c.Name + " = " + c.ParamName)),
+                WhereConditionByKey,
                 ";"
             );
         }
+
+        static string _whereConditionByKey;
+        static string WhereConditionByKey
+        {
+            get
+            {
+                return _whereConditionByKey ?? (_whereConditionByKey = string.Join(" AND ", ColumnsToEqualSql(KeyColumns)));
+            }
+        }
+
+        static IEnumerable<Metadata.Column> KeyColumns
+        {
+            get { return Metadata.Columns.Where(c => c.IsKey); }
+        }
+
+        static string _selectColumnsList;
+        static string SelectColumnsList
+        {
+            get
+            {
+                return _selectColumnsList ?? (_selectColumnsList = string.Join(", ", Metadata.Columns.Select(c => c.Name)));
+            }
+        }
+
+        static IEnumerable<string> ColumnsToEqualSql(IEnumerable<Metadata.Column> cols)
+        {
+            return cols.Select(c => c.Name + " = " + c.ParamName);
+        }
+
         private static string CreateDeleteStatement()
         {
-            return string.Concat(
-                "DELETE FROM ",
-                Metadata.TableName,
-                " WHERE ",
-                string.Join(" AND ", Metadata.Columns.Where(c => c.IsKey).Select(c => c.Name + " = " + c.ParamName)),
-                ";"
-            );
+            return string.Format("DELETE FROM {0} WHERE {1};", Metadata.TableName, WhereConditionByKey);
         }
+
         private static string CreateSelectStatement()
         {
-            return string.Concat(
-                "SELECT ",
-                string.Join(", ", Metadata.Columns.Select(c => c.Name)),
-                " FROM ",
-                Metadata.TableName,
-                " "
-            );
+            return string.Format("SELECT {0} FROM {1} ", SelectColumnsList, Metadata.TableName);
         }
         #endregion
 
@@ -396,15 +445,26 @@ namespace ObjectMapper
         private static Action<IDbCommand, T> _setInsertParamsFunc;
         internal static Action<IDbCommand, T> SetInsertParameters
         {
-            get { return _setInsertParamsFunc ?? (_setInsertParamsFunc = CreateSetParametersFunc(DbOperationType.Insert, c => c.IsInsertableParam)); }
+            get 
+            { 
+                return _setInsertParamsFunc 
+                ?? (
+                    _setInsertParamsFunc = 
+                    CreateSetParametersFunc(DbOperationType.Insert, c => c.IsInsertableParam)
+                ); 
+            }
         }
         #endregion
 
         #region Insert Mapped Object
-        private static Action<IDbCommand, T> _insertMappedObject;
-        internal static Action<IDbCommand, T> InsertMappedObject
+        private static Func<IDbCommand, T, int> _insertMappedObject;
+        internal static Func<IDbCommand, T, int> InsertMappedObject
         {
-            get { return _insertMappedObject ?? (_insertMappedObject = CreateInsertMappedObjectFunc()); }
+            get
+            {
+                return _insertMappedObject 
+                    ?? (_insertMappedObject = CreateInsertMappedObjectFunc());
+            }
         }
         #endregion
 
@@ -425,7 +485,8 @@ namespace ObjectMapper
         #endregion
 
         #region On-Demand Method Generation
-        private static Action<IDbCommand, T> CreateSetParametersFunc(DbOperationType operation, Func<Metadata.Column, bool> colPredicate = null)
+
+        static Action<IDbCommand, T> CreateSetParametersFunc(DbOperationType operation, Func<Metadata.Column, bool> colPredicate = null)
         {
             var cmdExpr = Expression.Parameter(typeof(IDbCommand), "cmd");
             var objExpr = Expression.Parameter(typeof(T), "obj");
@@ -434,59 +495,60 @@ namespace ObjectMapper
             if (colPredicate != null)
                 whichColumns = whichColumns.Where(colPredicate);
 
-            var blockExprs = whichColumns.Select(
-                column => ColumnToParamExpression(cmdExpr, operation, column, objExpr)
-            );
-
+            var blockExprs = whichColumns.Select(column => ColumnToParamExpression(cmdExpr, operation, column, objExpr));
             var bodyExpr = Expression.Block(blockExprs);
-
             return Expression.Lambda<Action<IDbCommand, T>>(bodyExpr, cmdExpr, objExpr).Compile();
         }
-        private static MethodCallExpression ColumnToParamExpression(ParameterExpression cmdExpr, DbOperationType operation, Metadata.Column column, ParameterExpression objExpr)
+
+        static MethodCallExpression ColumnToParamExpression(Expression cmdExpr, DbOperationType operation, Metadata.Column column, Expression objExpr)
         {
             Expression valueExpr;
+            var isInsert = operation == DbOperationType.Insert;
+            var isUpdate = operation == DbOperationType.Update;
+            var useCurrentTimestamp = isInsert && column.IsCreatedTimestamp || (isUpdate || isInsert) && column.IsModifiedTimestamp;
 
-            if (
-                (operation == DbOperationType.Insert && column.IsCreatedTimestamp) ||
-                ((operation == DbOperationType.Update || operation == DbOperationType.Insert) && column.IsModifiedTimestamp) // Insert Modified timestamp
-                )
+            if (useCurrentTimestamp)
+                // [value] = DateTime.Now
                 valueExpr = Expression.Property(null, DateTimeNowProperty);
             else if (column.IsEnum && column.EnumSaveType == EnumSaveType.String)
+                // [value] = obj.Property.ToString()
                 valueExpr = Expression.Call(Expression.Property(objExpr, column.Property), ToStringMethod);
             else
+                // [value] = obj.Property
                 valueExpr = Expression.Property(objExpr, column.Property);
 
-            return Expression.Call(SetCommandParameterValueMethod,
-                cmdExpr,
-                Expression.Constant("@" + column.Name),
-                Expression.Convert(
-                    valueExpr,
-                    typeof(object)
-                )
+            return Expression.Call(
+                // Helpers.SetCommandParameterValue(cmd, @columnName, (object), [value]);
+                SetCommandParameterValueMethod, cmdExpr, Expression.Constant("@" + column.Name), Expression.Convert(valueExpr, typeof(object))
             );
         }
-        private static Action<IDbCommand, T> CreateInsertMappedObjectFunc()
+
+        static Func<IDbCommand, T, int> CreateInsertMappedObjectFunc()
         {
             var cmdExpr = Expression.Parameter(typeof(IDbCommand), "cmd");
             var objExpr = Expression.Parameter(typeof(T), "obj");
-            var bodyExpr = Metadata.IdentityColumn != null
-                ? (Expression)Expression.Assign(
-                        Expression.Property(objExpr, Metadata.IdentityColumn.Property),
-                        Expression.Convert(
-                            Expression.Call(
-                                cmdExpr,
-                                ExecuteScalarMethod
-                            ),
-                            Metadata.IdentityColumn.Property.PropertyType
-                        )
-                    )
-                : Expression.Call(
-                        cmdExpr,
-                        ExecuteNonQueryMethod
-                    );
 
-            return Expression.Lambda<Action<IDbCommand, T>>(bodyExpr, cmdExpr, objExpr).Compile();
+            var bodyExpr = Metadata.IdentityColumn != null
+                         ? ExecuteScalarExpression(objExpr, cmdExpr)
+                         : ExecuteNonQueryExpression(cmdExpr);
+
+            return Expression.Lambda<Func<IDbCommand, T, int>>(bodyExpr, cmdExpr, objExpr).Compile();
         }
+        static MethodCallExpression ExecuteNonQueryExpression(ParameterExpression cmdExpr)
+        {
+            return Expression.Call(cmdExpr, ExecuteNonQueryMethod);
+        }
+        static Expression ExecuteScalarExpression(Expression objExpr, Expression cmdExpr)
+        {
+            return Expression.Assign(
+                Expression.Property(objExpr, Metadata.IdentityColumn.Property),
+                Expression.Convert(
+                    Expression.Call(cmdExpr, ExecuteScalarMethod),
+                    Metadata.IdentityColumn.Property.PropertyType
+                    )
+                );
+        }
+
         #endregion
     }
 
@@ -494,6 +556,7 @@ namespace ObjectMapper
     internal static class Helpers
     {
         // ReSharper disable UnusedMember.Global
+        // ReSharper disable MemberCanBePrivate.Global
         public static IDataParameter CreateParameterWithValue(IDbCommand cmd, string name, object value)
         {
             var p = cmd.CreateParameter();
@@ -505,15 +568,11 @@ namespace ObjectMapper
         public static void SetCommandParameterValue(IDbCommand cmd, string name, object value)
         {
             if (cmd.Parameters.Contains(name))
-            {
-                ((IDataParameter)cmd.Parameters[name]).Value = value;
-            }
+                ((IDataParameter) cmd.Parameters[name]).Value = value;
             else
-            {
                 cmd.Parameters.Add(CreateParameterWithValue(cmd, name, value));
-            }
         }
-        // ReSharper restore UnusedMember.Global
+
         public static object GetDbValue(object o)
         {
             if (o != null && o.GetType().IsEnum)
@@ -525,6 +584,8 @@ namespace ObjectMapper
             }
             return o;
         }
+        // ReSharper restore MemberCanBePrivate.Global
+        // ReSharper restore UnusedMember.Global
     }
     #endregion
 
@@ -630,3 +691,4 @@ namespace ObjectMapper
 
     #endregion
 }
+
