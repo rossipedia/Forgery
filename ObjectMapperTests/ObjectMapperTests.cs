@@ -1,16 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
-using System.Diagnostics;
-using System.Linq;
-using Moq;
-using ObjectMapper;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-namespace ObjectMapperTests
+﻿namespace ObjectMapperTests
 {
-    [TestClass]
+    using System;
+    using System.Collections.Generic;
+    using System.Data;
+    using System.Data.SqlClient;
+    using System.Linq;
+    using Moq;
+    using NUnit.Framework;
+    using ObjectMapper;
+
+    [TestFixture]
     public class ObjectMapperTest
     {
         #region Types for testing
@@ -88,18 +87,6 @@ namespace ObjectMapperTests
             public string Name { get; set; }
         }
 
-        public class TimestampedObject
-        {
-            [DbKey]
-            public int Id { get; set; }
-            public string Name { get; set; }
-
-            [DbCreatedTimestamp]
-            public DateTime Created { get; set; }
-            [DbModifiedTimestamp]
-            public DateTime Modified { get; set; }
-        }
-
         public class ObjectWithIntEnumProperty
         {
             [DbKey]
@@ -140,18 +127,23 @@ namespace ObjectMapperTests
         #endregion
 
         #region Objects for Testing
-        private TestObject _testObject;
+        private TestObject testObject;
         #endregion
 
         #region Constants
-        private const string ExpectedUpdateStatement = "UPDATE TestObject SET Name = @Name, TestValue1 = @TestValue1, TestValue2 = @TestValue2 WHERE Id = @Id;";
-        private const string ExpectedInsertStatement = "INSERT INTO TestObject (Name, TestValue1, TestValue2) VALUES (@Name, @TestValue1, @TestValue2); SELECT SCOPE_IDENTITY() as Id;";
-        private const string ExpectedDeleteStatement = "DELETE FROM TestObject WHERE Id = @Id;";
+
+        private const string ExpectedInsertStatement = "INSERT INTO TestObject (Name, TestValue1, TestValue2) VALUES (@Name, @TestValue1, @TestValue2) SELECT SCOPE_IDENTITY() AS Id";
+
+        private const string ExpectedUpdateStatement = "UPDATE TestObject SET Name = @Name, TestValue1 = @TestValue1, TestValue2 = @TestValue2 WHERE Id = @Id";
+
         private const string ExpectedSelectStatement = "SELECT Id, Name, TestValue1, TestValue2 FROM TestObject ";
+
+        private const string ExpectedDeleteStatement = "DELETE FROM TestObject WHERE Id = @Id";
+
         #endregion
 
         #region Mocks
-        MockRepository _mockRepository;
+        MockRepository mockRepository;
 
         class TestMocks
         {
@@ -167,9 +159,9 @@ namespace ObjectMapperTests
         {
             var mocks = new TestMocks
             {
-                Connection = _mockRepository.Create<IDbConnection>(),
-                Command = _mockRepository.Create<IDbCommand>(),
-                Parameters = _mockRepository.Create<IDataParameterCollection>(),
+                Connection = this.mockRepository.Create<IDbConnection>(),
+                Command = this.mockRepository.Create<IDbCommand>(),
+                Parameters = this.mockRepository.Create<IDataParameterCollection>(),
                 RealParameters = new List<IDataParameter>(),
                 Reader = new Mock<IDataReader>()
             };
@@ -183,7 +175,7 @@ namespace ObjectMapperTests
 
         void SetupMockRepository()
         {
-            _mockRepository = new MockRepository(MockBehavior.Strict);
+            this.mockRepository = new MockRepository(MockBehavior.Strict);
         }
 
         void SetupMockConnection(TestMocks mocks)
@@ -199,9 +191,10 @@ namespace ObjectMapperTests
             mocks.Command.SetupGet(cmd => cmd.Parameters).Returns(mocks.Parameters.Object);
 
             mocks.Command.Setup(cmd => cmd.ExecuteReader()).Returns(mocks.Reader.Object);
-            
-            mocks.Command.Setup(cmd => cmd.CreateParameter()).Returns(() => {
-                var p = _mockRepository.Create<IDbDataParameter>();
+
+            mocks.Command.Setup(cmd => cmd.CreateParameter()).Returns(() =>
+            {
+                var p = this.mockRepository.Create<IDbDataParameter>();
                 p.SetupAllProperties();
                 return p.Object;
             });
@@ -280,7 +273,7 @@ namespace ObjectMapperTests
 
 
 
-        [TestInitialize]
+        [SetUp]
         public void Setup()
         {
             SetupTestObject();
@@ -289,7 +282,7 @@ namespace ObjectMapperTests
 
         void SetupTestObject()
         {
-            _testObject = new TestObject
+            this.testObject = new TestObject
             {
                 Id = 1,
                 Name = "John",
@@ -314,29 +307,29 @@ namespace ObjectMapperTests
 
         #region Tests
 
-        [TestMethod]
+        [Test]
         public void TestMapper()
         {
             var mocks = CreateTestMocks();
-            var reader = CreateMockReader(mocks, _testObject);
+            var reader = CreateMockReader(mocks, this.testObject);
             reader.Read();
             var result = reader.MapObject<TestObject>();
-            Assert.AreEqual(_testObject.Id, result.Id);
-            Assert.AreEqual(_testObject.Name, result.Name);
-            Assert.AreEqual(_testObject.TestValue1, result.TestValue1);
-            Assert.AreEqual(_testObject.TestValue2, result.TestValue2);
+            Assert.AreEqual(this.testObject.Id, result.Id);
+            Assert.AreEqual(this.testObject.Name, result.Name);
+            Assert.AreEqual(this.testObject.TestValue1, result.TestValue1);
+            Assert.AreEqual(this.testObject.TestValue2, result.TestValue2);
         }
 
-        [TestMethod]
+        [Test]
         [ExpectedException(typeof(IndexOutOfRangeException))]
         public void TestMapperFieldNotFound()
         {
-            var reader = _mockRepository.Create<IDataReader>();
+            var reader = this.mockRepository.Create<IDataReader>();
             reader.Setup(r => r.GetOrdinal("FooBar")).Throws<IndexOutOfRangeException>();
             reader.Object.MapObject<UnmappableObject>();
         }
 
-        [TestMethod]
+        [Test]
         public void TestEnumerableMapper()
         {
             var objects = Enumerable.Range(0, 5).Select(i => new TestObject
@@ -361,100 +354,100 @@ namespace ObjectMapperTests
             }
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateInsertStatement()
         {
-            Assert.AreEqual(ExpectedInsertStatement, ObjectMapper<TestObject>.InsertStatement);
+            Assert.AreEqual(ExpectedInsertStatement, DataExtensions.ObjectMapper<TestObject>.InsertStatement);
         }
 
-        [TestMethod]
+        [Test]
         public void TestSetInsertParameters()
         {
             var mocks = CreateTestMocks();
             var cmd = mocks.Command.Object;
 
-            cmd.SetMappedInsertParameters(_testObject);
+            cmd.SetMappedInsertParameters(this.testObject);
             Assert.AreEqual(3, cmd.Parameters.Count);
 
-            AssertParameter(cmd, "@Name", _testObject.Name);
-            AssertParameter(cmd, "@TestValue1", _testObject.TestValue1);
-            AssertParameter(cmd, "@TestValue2", _testObject.TestValue2.ToString());
+            AssertParameter(cmd, "@Name", this.testObject.Name);
+            AssertParameter(cmd, "@TestValue1", this.testObject.TestValue1);
+            AssertParameter(cmd, "@TestValue2", this.testObject.TestValue2.ToString());
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateUpdateStatement()
         {
-            Assert.AreEqual(ExpectedUpdateStatement, ObjectMapper<TestObject>.UpdateStatement);
+            Assert.AreEqual(ExpectedUpdateStatement, DataExtensions.ObjectMapper<TestObject>.UpdateStatement);
         }
 
-        [TestMethod]
+        [Test]
         public void TestSetUpdateParameters()
         {
             //var cmd = new SqlCommand();
             var mocks = CreateTestMocks();
             var cmd = mocks.Command.Object;
-            cmd.SetMappedUpdateParameters(_testObject);
+            cmd.SetMappedUpdateParameters(this.testObject);
 
             Assert.AreEqual(4, cmd.Parameters.Count);
 
-            AssertParameter(cmd, "@Id", _testObject.Id);
-            AssertParameter(cmd, "@Name", _testObject.Name);
-            AssertParameter(cmd, "@TestValue1", _testObject.TestValue1);
-            AssertParameter(cmd, "@TestValue2", _testObject.TestValue2.ToString());
+            AssertParameter(cmd, "@Id", this.testObject.Id);
+            AssertParameter(cmd, "@Name", this.testObject.Name);
+            AssertParameter(cmd, "@TestValue1", this.testObject.TestValue1);
+            AssertParameter(cmd, "@TestValue2", this.testObject.TestValue2.ToString());
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateInsertCommand()
         {
             var mocks = CreateTestMocks();
             var conn = mocks.Connection.Object;
-            var cmd = conn.CreateMappedInsertCommand(_testObject);
+            var cmd = conn.CreateMappedInsertCommand(this.testObject);
 
             Assert.AreEqual(ExpectedInsertStatement, cmd.CommandText);
             Assert.AreEqual(CommandType.Text, cmd.CommandType);
 
             Assert.AreEqual(3, cmd.Parameters.Count);
 
-            AssertParameter(cmd, "@Name", _testObject.Name);
-            AssertParameter(cmd, "@TestValue1", _testObject.TestValue1);
-            AssertParameter(cmd, "@TestValue2", _testObject.TestValue2.ToString());
+            AssertParameter(cmd, "@Name", this.testObject.Name);
+            AssertParameter(cmd, "@TestValue1", this.testObject.TestValue1);
+            AssertParameter(cmd, "@TestValue2", this.testObject.TestValue2.ToString());
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateUpdateCommand()
         {
             var conn = new SqlConnection();
-            var cmd = conn.CreateMappedUpdateCommand(_testObject);
+            var cmd = conn.CreateMappedUpdateCommand(this.testObject);
 
             Assert.AreEqual(ExpectedUpdateStatement, cmd.CommandText);
             Assert.AreEqual(CommandType.Text, cmd.CommandType);
 
             Assert.AreEqual(4, cmd.Parameters.Count);
 
-            AssertParameter(cmd, "@Id", _testObject.Id);
-            AssertParameter(cmd, "@Name", _testObject.Name);
-            AssertParameter(cmd, "@TestValue1", _testObject.TestValue1);
-            AssertParameter(cmd, "@TestValue2", _testObject.TestValue2.ToString());
+            AssertParameter(cmd, "@Id", this.testObject.Id);
+            AssertParameter(cmd, "@Name", this.testObject.Name);
+            AssertParameter(cmd, "@TestValue1", this.testObject.TestValue1);
+            AssertParameter(cmd, "@TestValue2", this.testObject.TestValue2.ToString());
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateDeleteStatement()
         {
-            Assert.AreEqual(ExpectedDeleteStatement, ObjectMapper<TestObject>.DeleteStatement);
+            Assert.AreEqual(ExpectedDeleteStatement, DataExtensions.ObjectMapper<TestObject>.DeleteStatement);
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateDeleteCommand()
         {
             var mocks = CreateTestMocks();
             var conn = mocks.Connection.Object;
-            var cmd = conn.CreateMappedDeleteCommand(_testObject);
+            var cmd = conn.CreateMappedDeleteCommand(this.testObject);
             Assert.AreEqual(ExpectedDeleteStatement, cmd.CommandText);
             Assert.AreEqual(CommandType.Text, cmd.CommandType);
-            AssertParameter(cmd, "@Id", _testObject.Id);
+            AssertParameter(cmd, "@Id", this.testObject.Id);
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateInsertCommandWithDefaults()
         {
             var mocks = CreateTestMocks();
@@ -468,7 +461,7 @@ namespace ObjectMapperTests
             AssertParameter(cmd, "@TestValue2", "Value1");
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateUpdateCommandWithDefaults()
         {
             var mocks = CreateTestMocks();
@@ -483,7 +476,7 @@ namespace ObjectMapperTests
             AssertParameter(cmd, "@TestValue2", "Value1");
         }
 
-        [TestMethod]
+        [Test]
         public void TestSetMappedInsertParametersDoesntCreateMultiple()
         {
             var obj2 = new TestObject
@@ -499,77 +492,77 @@ namespace ObjectMapperTests
 
             Assert.AreEqual(3, cmd.Parameters.Count);
 
-            cmd.SetMappedInsertParameters(_testObject);
-            AssertParameter(cmd, "@Name", _testObject.Name);
+            cmd.SetMappedInsertParameters(this.testObject);
+            AssertParameter(cmd, "@Name", this.testObject.Name);
             var p1 = cmd.Parameters["@Name"];
-            
+
             cmd.SetMappedInsertParameters(obj2);
             AssertParameter(cmd, "@Name", obj2.Name);
             var p2 = cmd.Parameters["@Name"];
-            
+
             Assert.AreSame(p1, p2);
         }
 
-        [TestMethod]
+        [Test]
         public void TestSetDeleteParameters()
         {
             var mocks = CreateTestMocks();
             var cmd = mocks.Command.Object;
-            cmd.SetMappedDeleteParameters(_testObject);
+            cmd.SetMappedDeleteParameters(this.testObject);
 
             Assert.AreEqual(1, cmd.Parameters.Count);
-            AssertParameter(cmd, "@Id", _testObject.Id);
+            AssertParameter(cmd, "@Id", this.testObject.Id);
         }
 
-        [TestMethod]
+        [Test]
         [ExpectedException(typeof(MetadataValidationException))]
         public void TestMultipleIdentityThrows()
         {
             // ReSharper disable UnusedVariable
-            var metaData = ObjectMapper<MultipleIdentityObject>.Metadata;
+            var metaData = DataExtensions.ObjectMapper<MultipleIdentityObject>.Metadata;
             // ReSharper restore UnusedVariable
         }
 
-        [TestMethod]
+        [Test]
         public void TestMultipleKeysOnUpdate()
         {
             Assert.AreEqual(
-                "UPDATE MultiKeyObject SET Name = @Name WHERE Key1 = @Key1 AND Key2 = @Key2;",
-                ObjectMapper<MultiKeyObject>.UpdateStatement
+                "UPDATE MultiKeyObject SET Name = @Name WHERE Key1 = @Key1 AND Key2 = @Key2",
+                DataExtensions.ObjectMapper<MultiKeyObject>.UpdateStatement
             );
         }
 
-        [TestMethod]
+        [Test]
         public void TestNonKeyIdentityDoesntUpdate()
         {
             Assert.AreEqual(
-                "UPDATE ObjectWithNonKeyIdentity SET Name = @Name WHERE Code = @Code;",
-                ObjectMapper<ObjectWithNonKeyIdentity>.UpdateStatement
+                "UPDATE ObjectWithNonKeyIdentity SET Name = @Name WHERE Code = @Code",
+                DataExtensions.ObjectMapper<ObjectWithNonKeyIdentity>.UpdateStatement
             );
         }
 
-        [TestMethod]
+        [Test]
         public void TestNonKeyIdentityDoesntInsert()
         {
             Assert.AreEqual(
-                "INSERT INTO ObjectWithNonKeyIdentity (Code, Name) VALUES (@Code, @Name); SELECT SCOPE_IDENTITY() as Ident;",
-                ObjectMapper<ObjectWithNonKeyIdentity>.InsertStatement
+                "INSERT INTO ObjectWithNonKeyIdentity (Code, Name) VALUES (@Code, @Name) SELECT SCOPE_IDENTITY() AS Ident",
+                DataExtensions.ObjectMapper<ObjectWithNonKeyIdentity>.InsertStatement
             );
         }
 
-        [TestMethod]
+        [Test]
         public void TestInsertMappedObjectWithIdentity()
         {
             var mocks = CreateTestMocks();
             var cmd = mocks.Command;
             cmd.Setup(c => c.ExecuteScalar()).Returns(123);
             var conn = mocks.Connection.Object;
-            
-            conn.InsertMappedObject(_testObject);
-            Assert.AreEqual(123, _testObject.Id);
+
+            conn.InsertMappedObject(this.testObject);
+            Assert.AreEqual(123, this.testObject.Id);
         }
 
-        [TestMethod]
+        [Test]
         public void TestInsertMappedObjectWithoutIdentity()
         {
             var mocks = CreateTestMocks();
@@ -579,67 +572,14 @@ namespace ObjectMapperTests
             Assert.AreEqual(1, conn.InsertMappedObject(obj));
         }
 
-        [TestMethod]
+        [Test]
         [ExpectedException(typeof(MetadataValidationException))]
         public void TestUpdateWithoutNonKeyColumnsThrows()
         {
-            Assert.AreNotEqual(null, ObjectMapper<NonIdentityObject>.UpdateStatement);
+            Assert.AreNotEqual(null, DataExtensions.ObjectMapper<NonIdentityObject>.UpdateStatement);
         }
 
-        [TestMethod]
-        public void TestCreatedAndModifiedTimestampWithInsert()
-        {
-            var testObject = new TimestampedObject { Id = 123, Name = "Bob" };
-            var begin = DateTime.Now;
-            var mocks = CreateTestMocks();
-            var cmd = mocks.Command.Object;
-            cmd.SetMappedInsertParameters(testObject);
-            var end = DateTime.Now;
-            
-            Assert.IsTrue(cmd.Parameters.Contains("@Created"));
-            Assert.IsTrue(cmd.Parameters.Contains("@Modified"));
-
-            var createdParam = (IDataParameter)cmd.Parameters["@Created"];
-            var updatedParam = (IDataParameter)cmd.Parameters["@Modified"];
-
-            Assert.AreSame(typeof(DateTime), createdParam.Value.GetType());
-            Assert.AreSame(typeof(DateTime), updatedParam.Value.GetType());
-
-            Assert.IsTrue(begin <= (DateTime)createdParam.Value && end >= (DateTime)createdParam.Value);
-            Assert.IsTrue(begin <= (DateTime)updatedParam.Value && end >= (DateTime)updatedParam.Value);
-        }
-
-        [TestMethod]
-        public void TestCreatedTimestampDoesntUpdate()
-        {
-            Assert.AreEqual(
-                "UPDATE TimestampedObject SET Name = @Name, Modified = @Modified WHERE Id = @Id;",
-                ObjectMapper<TimestampedObject>.UpdateStatement
-            );
-        }
-
-        [TestMethod]
-        public void TestCreatedTimestampDoesntGetUpdateParam()
-        {
-            var test = new TimestampedObject { Id = 123, Name = "Bob", Created = new DateTime(2012, 1, 1) };
-            var mocks = CreateTestMocks();
-            var cmd = mocks.Command.Object;
-            cmd.SetMappedUpdateParameters(test);
-            Assert.IsFalse(cmd.Parameters.Contains("@Created"));
-        }
-
-        [TestMethod]
-        public void TestModifiedTimestampGetsOverwrittenOnUpdate()
-        {
-            var test = new TimestampedObject { Id = 123, Name = "Bob", Created = new DateTime(2012, 1, 1), Modified = new DateTime(2012, 1, 2) };
-            var originalModified = test.Modified;
-            var mocks = CreateTestMocks();
-            var cmd = mocks.Command.Object;
-            cmd.SetMappedUpdateParameters(test);
-            Assert.AreNotEqual(originalModified, ((IDataParameter)cmd.Parameters["@Modified"]).Value);
-        }
-
-        [TestMethod]
+        [Test]
         public void TestPropertyEnumSaveTypeOverridesEnumSaveType()
         {
             var test = new ObjectWithIntEnumProperty
@@ -659,57 +599,57 @@ namespace ObjectMapperTests
             AssertParameter(cmd, "@EnumVal2", test.EnumVal2);
         }
 
-        [TestMethod]
+        [Test]
         public void TestObjectWithSpecificTableName()
         {
             Assert.AreEqual(
-                "INSERT INTO SomeTable (Name) VALUES (@Name); SELECT SCOPE_IDENTITY() as Id;",
-                ObjectMapper<ObjectWithSpecificTableName>.InsertStatement
+                "INSERT INTO SomeTable (Name) VALUES (@Name) SELECT SCOPE_IDENTITY() AS Id",
+                DataExtensions.ObjectMapper<ObjectWithSpecificTableName>.InsertStatement
             );
 
             Assert.AreEqual(
-                "UPDATE SomeTable SET Name = @Name WHERE Id = @Id;",
-                ObjectMapper<ObjectWithSpecificTableName>.UpdateStatement
+                "UPDATE SomeTable SET Name = @Name WHERE Id = @Id",
+                DataExtensions.ObjectMapper<ObjectWithSpecificTableName>.UpdateStatement
             );
 
             Assert.AreEqual(
-                "DELETE FROM SomeTable WHERE Id = @Id;",
-                ObjectMapper<ObjectWithSpecificTableName>.DeleteStatement
+                "DELETE FROM SomeTable WHERE Id = @Id",
+                DataExtensions.ObjectMapper<ObjectWithSpecificTableName>.DeleteStatement
             );
         }
 
-        [TestMethod]
+        [Test]
         public void TestObjectWithPrefixedTableName()
         {
             Assert.AreEqual(
-                "INSERT INTO testObjectWithPrefixedTableName (Name) VALUES (@Name); SELECT SCOPE_IDENTITY() as Id;",
-                ObjectMapper<ObjectWithPrefixedTableName>.InsertStatement
+                "INSERT INTO testObjectWithPrefixedTableName (Name) VALUES (@Name) SELECT SCOPE_IDENTITY() AS Id",
+                DataExtensions.ObjectMapper<ObjectWithPrefixedTableName>.InsertStatement
             );
 
             Assert.AreEqual(
-                "UPDATE testObjectWithPrefixedTableName SET Name = @Name WHERE Id = @Id;",
-                ObjectMapper<ObjectWithPrefixedTableName>.UpdateStatement
+                "UPDATE testObjectWithPrefixedTableName SET Name = @Name WHERE Id = @Id",
+                DataExtensions.ObjectMapper<ObjectWithPrefixedTableName>.UpdateStatement
             );
 
             Assert.AreEqual(
-                "DELETE FROM testObjectWithPrefixedTableName WHERE Id = @Id;",
-                ObjectMapper<ObjectWithPrefixedTableName>.DeleteStatement
+                "DELETE FROM testObjectWithPrefixedTableName WHERE Id = @Id",
+                DataExtensions.ObjectMapper<ObjectWithPrefixedTableName>.DeleteStatement
             );
         }
 
-        [TestMethod]
+        [Test]
         public void TestAssemblyWidePrefixedTableName()
         {
             // TODO: Gotta think about how to pull this one off
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateSelectStatement()
         {
-            Assert.AreEqual(ExpectedSelectStatement, ObjectMapper<TestObject>.SelectStatement);
+            Assert.AreEqual(ExpectedSelectStatement, DataExtensions.ObjectMapper<TestObject>.SelectStatement);
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateMappedSelectCommand()
         {
             var mocks = CreateTestMocks();
@@ -720,7 +660,7 @@ namespace ObjectMapperTests
             Assert.AreEqual(CommandType.Text, cmd.CommandType);
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateMappedSelectCommandWithCriteria()
         {
             var mocks = CreateTestMocks();
@@ -734,7 +674,7 @@ namespace ObjectMapperTests
             Assert.AreEqual(CommandType.Text, cmd.CommandType);
         }
 
-        [TestMethod]
+        [Test]
         public void TestCreateMappedSelectCommandWithCriteriaAndIndexedParameters()
         {
             var mocks = CreateTestMocks();
@@ -749,27 +689,27 @@ namespace ObjectMapperTests
             AssertParameter(cmd, "@0", 1);
         }
 
-        [TestMethod]
+        [Test]
         public void TestExecuteNonQueryText()
         {
             var mocks = CreateTestMocks();
             var conn = mocks.Connection.Object;
             mocks.Command.Setup(cmd => cmd.ExecuteNonQuery()).Returns(1);
-            
+
             var result = conn.ExecuteNonQueryText("UPDATE TestObject SET Name = @0", "Bob");
-            
+
             Assert.AreEqual(1, result);
             mocks.Parameters.Verify(p => p.Add(It.IsAny<IDataParameter>()));
         }
 
-        [TestMethod]
+        [Test]
         public void TestExecuteReaderText()
         {
             var mocks = CreateTestMocks();
             var conn = mocks.Connection.Object;
 
             var reader = conn.ExecuteReaderText("SELECT * FROM TestObject WHERE Name = @0;", "Bob");
-            
+
             Assert.IsNotNull(reader);
             mocks.Parameters.Verify(p => p.Add(It.IsAny<IDataParameter>()));
         }

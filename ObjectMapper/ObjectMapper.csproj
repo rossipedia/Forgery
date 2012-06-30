@@ -39,8 +39,20 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ObjectMapper.cs" />
+    <Compile Include="DbEnumAttribute.cs" />
+    <Compile Include="DbIdentityAttribute.cs" />
+    <Compile Include="DbIgnoreAttribute.cs" />
+    <Compile Include="DbKeyAttribute.cs" />
+    <Compile Include="DbOperationType.cs" />
+    <Compile Include="DbTableAttribute.cs" />
+    <Compile Include="EnumSaveType.cs" />
+    <Compile Include="Guard.cs" />
+    <Compile Include="MetadataValidationException.cs" />
+    <Compile Include="DataExtensions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Settings.StyleCop" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
