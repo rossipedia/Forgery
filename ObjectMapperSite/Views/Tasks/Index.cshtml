@@ -1,0 +1,30 @@
+﻿@model IEnumerable<ObjectMapperSite.Models.Task>
+
+@{
+    ViewBag.Title = "Tasks";
+}
+
+<h2>Tasks</h2>
+
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Name</th>
+            <th>Is Done</th>
+            <th>Due Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach(var task in Model)
+        {
+            <tr>
+                <td>@Html.DisplayFor(m => task.Id)</td>
+                <td>@Html.DisplayFor(m => task.Name)</td>
+                <td>@Html.DisplayFor(m => task.IsDone)</td>
+                <td>@Html.DisplayFor(m => task.DueDate)</td>
+            </tr>
+        }
+    </tbody>
+</table>
