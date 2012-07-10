@@ -7,7 +7,7 @@
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
-namespace ObjectMapper
+namespace ObjectMapper.Attributes
 {
     using System;
 

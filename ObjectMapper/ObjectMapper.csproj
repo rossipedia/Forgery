@@ -39,16 +39,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DbEnumAttribute.cs" />
-    <Compile Include="DbIdentityAttribute.cs" />
-    <Compile Include="DbIgnoreAttribute.cs" />
-    <Compile Include="DbKeyAttribute.cs" />
-    <Compile Include="DbOperationType.cs" />
-    <Compile Include="DbTableAttribute.cs" />
+    <Compile Include="Attributes\DbEnumAttribute.cs" />
+    <Compile Include="Attributes\DbIdentityAttribute.cs" />
+    <Compile Include="Attributes\DbIgnoreAttribute.cs" />
+    <Compile Include="Attributes\DbKeyAttribute.cs" />
+    <Compile Include="Attributes\DbTableAttribute.cs" />
     <Compile Include="EnumSaveType.cs" />
-    <Compile Include="Guard.cs" />
-    <Compile Include="MetadataValidationException.cs" />
-    <Compile Include="DataExtensions.cs" />
+    <Compile Include="Utility\Guard.cs" />
+    <Compile Include="Exceptions\MetadataValidationException.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

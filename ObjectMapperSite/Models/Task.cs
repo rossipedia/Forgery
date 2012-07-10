@@ -3,6 +3,7 @@
     using System;
 
     using ObjectMapper;
+    using ObjectMapper.Attributes;
 
     [DbTable(Name = "Tasks")]
     public class Task

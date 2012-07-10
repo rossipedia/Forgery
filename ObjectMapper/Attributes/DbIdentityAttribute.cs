@@ -1,22 +1,21 @@
 // --------------------------------------------------------------------------------------------------------------------
-// <copyright file="DbIgnoreAttribute.cs" company="Bryan Ross">
+// <copyright file="DbIdentityAttribute.cs" company="Bryan Ross">
 //   This source code is provided as-is. Feel free to do whatever you wish with it.
 // </copyright>
 // <summary>
-//   Defines the DbIgnoreAttribute type.
+//   Defines the DbIdentityAttribute type.
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
-namespace ObjectMapper
+namespace ObjectMapper.Attributes
 {
     using System;
 
     /// <summary>
-    /// Indicates that the ObjectMapper should
-    /// ignore this property when resolving to database columns.
+    /// Marks the property as the Identity property for instances of the type.
     /// </summary>
     [AttributeUsage(AttributeTargets.Property)]
-    public class DbIgnoreAttribute : Attribute
+    public class DbIdentityAttribute : Attribute
     {
     }
 }
