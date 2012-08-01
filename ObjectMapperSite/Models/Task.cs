@@ -1,18 +1,8 @@
-﻿namespace ObjectMapperSite.Models
-{
-    using System;
-
-    using ObjectMapper;
-    using ObjectMapper.Attributes;
-
-    [DbTable(Name = "Tasks")]
-    public class Task
-    {
-        [DbKey, DbIdentity]
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public bool IsDone { get; set; }
-        public string Description { get; set; }
-        public DateTime DueDate { get; set; }
-    }
-}
+﻿// --------------------------------------------------------------------------------------------------------------------
+// <copyright file="Task.cs" company="Bryan Ross">
+//   Copyright (c) Bryan Ross
+// </copyright>
+// <summary>
+//   Defines the Task type.
+// </summary>
+// --------------------------------------------------------------------------------------------------------------------

@@ -1,13 +1,13 @@
 // --------------------------------------------------------------------------------------------------------------------
 // <copyright file="MetadataValidationException.cs" company="Bryan Ross">
-//   Copyright (c) Bryan Ross. No rights reserved.
+//   This source code is provided as-is. Feel free to do whatever you wish with it.
 // </copyright>
 // <summary>
 //   Defines the MetadataValidationException type.
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
-namespace ObjectMapper
+namespace ObjectMapper.Exceptions
 {
     using System;
 

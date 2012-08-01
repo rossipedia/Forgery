@@ -55,7 +55,8 @@
     <Otherwise />
   </Choose>
   <ItemGroup>
-    <Compile Include="ObjectMapperTests.cs" />
+    <Compile Include="ConstructorParameterStrategyTests.cs" />
+    <Compile Include="ConstructorResolutionTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

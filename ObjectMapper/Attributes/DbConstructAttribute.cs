@@ -1,18 +1,20 @@
 ﻿// --------------------------------------------------------------------------------------------------------------------
-// <copyright file="TasksController.cs" company="Bryan Ross">
-//   Copyright (c) Bryan Ross
+// <copyright file="DbConstructAttribute.cs" company="Bryan Ross">
+//   This source code is provided as-is. Feel free to do whatever you wish with it.
 // </copyright>
 // <summary>
-//   Defines the TasksController fieldType.
+//   Defines the DbConstructAttribute type.
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
-namespace ObjectMapperSite.Controllers
+namespace ObjectMapper.Attributes
 {
+    using System;
+
     /// <summary>
-    /// The tasks controller.
+    /// The db construct attribute.
     /// </summary>
-    public class TasksController : ConnectionController
+    public class DbConstructAttribute : Attribute
     {
     }
 }

@@ -39,12 +39,22 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Attributes\DbConstructAttribute.cs" />
     <Compile Include="Attributes\DbEnumAttribute.cs" />
     <Compile Include="Attributes\DbIdentityAttribute.cs" />
     <Compile Include="Attributes\DbIgnoreAttribute.cs" />
     <Compile Include="Attributes\DbKeyAttribute.cs" />
     <Compile Include="Attributes\DbTableAttribute.cs" />
+    <Compile Include="Builders\DefaultConstructorResolutionStrategy.cs" />
+    <Compile Include="DataField.cs" />
+    <Compile Include="FieldStrategies\ConstructorParametersStrategy.cs" />
+    <Compile Include="FieldStrategies\DbConstructResolutionStrategy.cs" />
+    <Compile Include="Builders\IExpressionBuilder.cs" />
+    <Compile Include="FieldStrategies\MostSpecificConstructorResolutionStrategy.cs" />
+    <Compile Include="FieldStrategies\IFieldResolutionStrategy.cs" />
+    <Compile Include="FieldStrategies\IConstructorResolutionStrategy.cs" />
     <Compile Include="EnumSaveType.cs" />
+    <Compile Include="FieldStrategies\PropertiesStrategy.cs" />
     <Compile Include="Utility\Guard.cs" />
     <Compile Include="Exceptions\MetadataValidationException.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
